@@ -1,0 +1,5 @@
+# Core dependencies
+anthropic>=0.18.1  # Anthropic API client
+rich>=13.7.0      # Rich text and formatting in terminal
+pyfiglet>=1.0.2   # ASCII art text
+python-dotenv>=1.0.0  # Environment variable management
