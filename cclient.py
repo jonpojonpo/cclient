@@ -111,10 +111,10 @@ Always explain tool usage and outcomes to the user clearly."""
 
     async def send_message(self, content: str):
             """Send message to Claude and handle responses with tool calls"""
-            # Add user message as a text block
+            # Start with user message
             self.messages.append({
                 "role": "user", 
-                "content": [{"type": "text", "text": content}]
+                "content": content  # Simple text content for user messages
             })
             
             try:
@@ -129,8 +129,8 @@ Always explain tool usage and outcomes to the user clearly."""
                             betas=["computer-use-2024-10-22"]
                         )
 
-                        assistant_message = []
-                        tool_calls = []
+                        assistant_content = []
+                        has_tool_calls = False
 
                         # Process content blocks
                         for content_block in response.content:
@@ -142,12 +142,11 @@ Always explain tool usage and outcomes to the user clearly."""
                                     border_style="blue",
                                     box=box.ROUNDED
                                 ))
-                                assistant_message.append({
-                                    "type": "text", 
-                                    "text": content_block.text
-                                })
+                                assistant_content.append(content_block)
+                                
                             elif content_block.type == "tool_use":
-                                tool_calls.append(content_block)
+                                has_tool_calls = True
+                                assistant_content.append(content_block)
                                 # Pretty print tool call
                                 self.console.print(Panel(
                                     f"Command: {content_block.input.get('command', '(no command)')}",
@@ -161,13 +160,6 @@ Always explain tool usage and outcomes to the user clearly."""
                                     tool_input=content_block.input
                                 )
                                 
-                                # Format tool result
-                                tool_result = {
-                                    "type": "tool_result",
-                                    "tool_use_id": content_block.id,
-                                    "content": []
-                                }
-
                                 if result.output:
                                     self.console.print(Panel(
                                         result.output,
@@ -175,11 +167,7 @@ Always explain tool usage and outcomes to the user clearly."""
                                         border_style="yellow",
                                         box=box.ROUNDED
                                     ))
-                                    tool_result["content"].append({
-                                        "type": "text",
-                                        "text": result.output
-                                    })
-                                
+
                                 if result.error:
                                     self.console.print(Panel(
                                         result.error,
@@ -187,24 +175,26 @@ Always explain tool usage and outcomes to the user clearly."""
                                         border_style="red",
                                         box=box.ROUNDED
                                     ))
-                                    tool_result["content"].append({
-                                        "type": "text",
-                                        "text": result.error
-                                    })
-                                    tool_result["is_error"] = True
 
-                        # Add assistant's message if there was any text content
-                        if assistant_message:
-                            self.messages.append({
-                                "role": "assistant",
-                                "content": assistant_message
-                            })
+                                # Format tool result for next message
+                                tool_result_content = [{
+                                    "type": "tool_result",
+                                    "tool_use_id": content_block.id,
+                                    "content": result.output or result.error,
+                                    "is_error": bool(result.error)
+                                }]
 
-                        # Add tool results if there were any tool calls
-                        if tool_calls:
+                        # First add assistant's message with both text and tool_use blocks
+                        self.messages.append({
+                            "role": "assistant",
+                            "content": assistant_content
+                        })
+
+                        # Then add tool results if there were tool calls
+                        if has_tool_calls:
                             self.messages.append({
                                 "role": "user",
-                                "content": [tool_result]  # Add all tool results
+                                "content": tool_result_content
                             })
                             continue  # Continue the loop for potential chained tool calls
                         
