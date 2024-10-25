@@ -111,58 +111,104 @@ Always explain tool usage and outcomes to the user clearly."""
 
     async def send_message(self, content: str):
             """Send message to Claude and handle responses with tool calls"""
-            self.messages.append({"role": "user", "content": content})
+            # Add user message as a text block
+            self.messages.append({
+                "role": "user", 
+                "content": [{"type": "text", "text": content}]
+            })
+            
             try:
-                with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
-                    # Remove await here - beta messages API is synchronous
-                    response = self.client.beta.messages.create(
-                        max_tokens=1024,
-                        messages=self.messages,
-                        model=self.current_model,
-                        system=self.system_prompt,
-                        tools=self.tool_collection.to_params(),
-                        betas=["computer-use-2024-10-22"]
-                    )
+                while True:  # Support multiple rounds of tool use
+                    with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
+                        response = self.client.beta.messages.create(
+                            max_tokens=1024,
+                            messages=self.messages,
+                            model=self.current_model,
+                            system=self.system_prompt,
+                            tools=self.tool_collection.to_params(),
+                            betas=["computer-use-2024-10-22"]
+                        )
 
-                    for content_block in response.content:
-                        if content_block.type == "text":
-                            processed_text = self.process_custom_markdown(content_block.text)
-                            self.console.print(Panel(
-                                Markdown(processed_text),
-                                title="Claude",
-                                border_style="blue",
-                                box=box.ROUNDED
-                            ))
-                        elif content_block.type == "tool_use":
-                            # Pretty print tool call
-                            self.console.print(f"\n[tool]Using {content_block.name}...[/tool]")
-                            result = await self.tool_collection.run(
-                                name=content_block.name,
-                                tool_input=content_block.input
-                            )
-                            if result.output:
+                        assistant_message = []
+                        tool_calls = []
+
+                        # Process content blocks
+                        for content_block in response.content:
+                            if content_block.type == "text":
+                                processed_text = self.process_custom_markdown(content_block.text)
                                 self.console.print(Panel(
-                                    result.output,
-                                    title=f"[tool]{content_block.name} output[/tool]",
-                                    border_style="yellow"
+                                    Markdown(processed_text),
+                                    title="Claude",
+                                    border_style="blue",
+                                    box=box.ROUNDED
                                 ))
-                            if result.error:
+                                assistant_message.append({
+                                    "type": "text", 
+                                    "text": content_block.text
+                                })
+                            elif content_block.type == "tool_use":
+                                tool_calls.append(content_block)
+                                # Pretty print tool call
                                 self.console.print(Panel(
-                                    result.error,
-                                    title="[danger]Error[/danger]",
-                                    border_style="red"
+                                    f"Command: {content_block.input.get('command', '(no command)')}",
+                                    title=f"[tool]Using {content_block.name}[/tool]",
+                                    border_style="yellow",
+                                    box=box.ROUNDED
                                 ))
-                            
-                            # Add tool result to messages
-                            self.messages.append({
-                                "role": "user",
-                                "content": [{
+                                
+                                result = await self.tool_collection.run(
+                                    name=content_block.name,
+                                    tool_input=content_block.input
+                                )
+                                
+                                # Format tool result
+                                tool_result = {
                                     "type": "tool_result",
                                     "tool_use_id": content_block.id,
-                                    "content": result.output or result.error,
-                                    "is_error": bool(result.error)
-                                }]
+                                    "content": []
+                                }
+
+                                if result.output:
+                                    self.console.print(Panel(
+                                        result.output,
+                                        title=f"[tool]{content_block.name} output[/tool]",
+                                        border_style="yellow",
+                                        box=box.ROUNDED
+                                    ))
+                                    tool_result["content"].append({
+                                        "type": "text",
+                                        "text": result.output
+                                    })
+                                
+                                if result.error:
+                                    self.console.print(Panel(
+                                        result.error,
+                                        title="[danger]Error[/danger]",
+                                        border_style="red",
+                                        box=box.ROUNDED
+                                    ))
+                                    tool_result["content"].append({
+                                        "type": "text",
+                                        "text": result.error
+                                    })
+                                    tool_result["is_error"] = True
+
+                        # Add assistant's message if there was any text content
+                        if assistant_message:
+                            self.messages.append({
+                                "role": "assistant",
+                                "content": assistant_message
                             })
+
+                        # Add tool results if there were any tool calls
+                        if tool_calls:
+                            self.messages.append({
+                                "role": "user",
+                                "content": [tool_result]  # Add all tool results
+                            })
+                            continue  # Continue the loop for potential chained tool calls
+                        
+                        break  # No more tool calls, exit the loop
 
             except Exception as e:
                 self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
