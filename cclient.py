@@ -155,34 +155,65 @@ Always explain tool usage and outcomes to the user clearly."""
                                     box=box.ROUNDED
                                 ))
                                 
-                                result = await self.tool_collection.run(
-                                    name=content_block.name,
-                                    tool_input=content_block.input
-                                )
-                                
-                                if result.output:
-                                    self.console.print(Panel(
-                                        result.output,
-                                        title=f"[tool]{content_block.name} output[/tool]",
-                                        border_style="yellow",
-                                        box=box.ROUNDED
-                                    ))
+                                try:
+                                    result = await self.tool_collection.run(
+                                        name=content_block.name,
+                                        tool_input=content_block.input
+                                    )
+                                    
+                                    if result.output:
+                                        self.console.print(Panel(
+                                            result.output,
+                                            title=f"[tool]{content_block.name} output[/tool]",
+                                            border_style="yellow",
+                                            box=box.ROUNDED
+                                        ))
 
-                                if result.error:
+                                    # Enhanced error handling with context
+                                    if result.error:
+                                        error_context = {
+                                            'tool': content_block.name,
+                                            'input': content_block.input,
+                                            'error': result.error,
+                                            'timestamp': datetime.now().isoformat()
+                                        }
+                                        
+                                        self.console.print(Panel(
+                                            f"Tool: {error_context['tool']}\n"
+                                            f"Input: {error_context['input']}\n"
+                                            f"Error: {error_context['error']}\n"
+                                            f"Time: {error_context['timestamp']}",
+                                            title="[danger]Tool Execution Error[/danger]",
+                                            border_style="red",
+                                            box=box.ROUNDED
+                                        ))
+
+                                    # Improved tool result content with more context
+                                    tool_result_content = [{
+                                        "type": "tool_result",
+                                        "tool_use_id": content_block.id,
+                                        "content": result.output or result.error,
+                                        "is_error": bool(result.error),
+                                        "error_context": error_context if result.error else None,
+                                        "timestamp": datetime.now().isoformat()
+                                    }]
+                                
+                                except Exception as e:
+                                    error_msg = f"Tool execution failed: {str(e)}"
                                     self.console.print(Panel(
-                                        result.error,
-                                        title="[danger]Error[/danger]",
+                                        error_msg,
+                                        title="[danger]Critical Tool Error[/danger]",
                                         border_style="red",
                                         box=box.ROUNDED
                                     ))
-
-                                # Format tool result for next message
-                                tool_result_content = [{
-                                    "type": "tool_result",
-                                    "tool_use_id": content_block.id,
-                                    "content": result.output or result.error,
-                                    "is_error": bool(result.error)
-                                }]
+                                    tool_result_content = [{
+                                        "type": "tool_result",
+                                        "tool_use_id": content_block.id,
+                                        "content": error_msg,
+                                        "is_error": True,
+                                        "error_type": type(e).__name__,
+                                        "timestamp": datetime.now().isoformat()
+                                    }]
 
                         # First add assistant's message with both text and tool_use blocks
                         self.messages.append({
@@ -200,9 +231,61 @@ Always explain tool usage and outcomes to the user clearly."""
                         
                         break  # No more tool calls, exit the loop
 
+            except anthropic.APIError as api_err:
+                error_context = {
+                    'error_type': 'API Error',
+                    'status_code': getattr(api_err, 'status_code', 'unknown'),
+                    'message': str(api_err),
+                    'timestamp': datetime.now().isoformat()
+                }
+                self.console.print(Panel(
+                    f"API Error occurred:\n"
+                    f"Status: {error_context['status_code']}\n"
+                    f"Message: {error_context['message']}\n"
+                    f"Time: {error_context['timestamp']}",
+                    title="[danger]Claude API Error[/danger]",
+                    border_style="red",
+                    box=box.ROUNDED
+                ))
+                # Add error context to messages for Claude to understand the failure
+                self.messages.append({
+                    "role": "system",
+                    "content": [{"type": "text", "text": f"Error in previous request: {error_context}"}]
+                })
+
+            except asyncio.TimeoutError as timeout_err:
+                self.console.print(Panel(
+                    "The operation timed out. This might be due to:\n"
+                    "- Slow network connection\n"
+                    "- Complex tool operation\n"
+                    "- Server-side delays",
+                    title="[danger]Timeout Error[/danger]",
+                    border_style="red",
+                    box=box.ROUNDED
+                ))
+
             except Exception as e:
-                self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
+                error_context = {
+                    'error_type': type(e).__name__,
+                    'message': str(e),
+                    'timestamp': datetime.now().isoformat()
+                }
+                self.console.print(Panel(
+                    f"Unexpected error occurred:\n"
+                    f"Type: {error_context['error_type']}\n"
+                    f"Message: {error_context['message']}\n"
+                    f"Time: {error_context['timestamp']}",
+                    title="[danger]Critical Error[/danger]",
+                    border_style="red",
+                    box=box.ROUNDED
+                ))
                 self.console.print_exception()
+                
+                # Add error context to messages
+                self.messages.append({
+                    "role": "system",
+                    "content": [{"type": "text", "text": f"Critical error occurred: {error_context}"}]
+                })
 
     def print_help(self):
         """Display help information"""
