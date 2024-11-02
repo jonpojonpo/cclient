@@ -180,7 +180,7 @@ Always explain tool usage and outcomes to the user clearly."""
                                 tool_result_content = [{
                                     "type": "tool_result",
                                     "tool_use_id": content_block.id,
-                                    "content": result.output or result.error,
+                                    "content": (result.output or "")  + (result.error or ""),
                                     "is_error": bool(result.error)
                                 }]
 
