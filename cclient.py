@@ -45,6 +45,9 @@ class ClaudeClient:
             EditTool(),
         )
 
+        # Track currently open files
+        self.open_files: Dict[str, str] = {}
+
         custom_theme = Theme({
             "info": "dim cyan",
             "warning": "magenta",
@@ -70,6 +73,12 @@ Special formatting:
 Available tools:
 - bash: Execute shell commands
 - str_replace_editor: Edit files with advanced capabilities
+  Commands available:
+  - view: View file contents (params: path, view_range[optional])
+  - create: Create new file (params: path, file_text)
+  - str_replace: Replace text in file (params: path, old_str, new_str)
+  - insert: Insert text at line (params: path, insert_line, new_str)
+  - undo_edit: Undo last edit (params: path)
 
 Always explain tool usage and outcomes to the user clearly."""
 
@@ -110,99 +119,118 @@ Always explain tool usage and outcomes to the user clearly."""
         return re.sub(figlet_pattern, figlet_replace, text)
 
     async def send_message(self, content: str):
-            """Send message to Claude and handle responses with tool calls"""
-            # Start with user message
-            self.messages.append({
-                "role": "user", 
-                "content": content  # Simple text content for user messages
-            })
-            
-            try:
-                while True:  # Support multiple rounds of tool use
-                    with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
-                        response = self.client.beta.messages.create(
-                            max_tokens=1024,
-                            messages=self.messages,
-                            model=self.current_model,
-                            system=self.system_prompt,
-                            tools=self.tool_collection.to_params(),
-                            betas=["computer-use-2024-10-22"]
-                        )
+        """Send message to Claude and handle responses with tool calls"""
+        self.messages.append({
+            "role": "user", 
+            "content": content
+        })
+        
+        try:
+            while True:  # Support multiple rounds of tool use
+                with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
+                    response = self.client.beta.messages.create(
+                        max_tokens=1024,
+                        messages=self.messages,
+                        model=self.current_model,
+                        system=self.system_prompt,
+                        tools=self.tool_collection.to_params(),
+                        betas=["computer-use-2024-10-22"]
+                    )
 
-                        assistant_content = []
-                        has_tool_calls = False
+                    assistant_content = []
+                    has_tool_calls = False
 
-                        # Process content blocks
-                        for content_block in response.content:
-                            if content_block.type == "text":
-                                processed_text = self.process_custom_markdown(content_block.text)
-                                self.console.print(Panel(
-                                    Markdown(processed_text),
-                                    title="Claude",
-                                    border_style="blue",
-                                    box=box.ROUNDED
-                                ))
-                                assistant_content.append(content_block)
-                                
-                            elif content_block.type == "tool_use":
-                                has_tool_calls = True
-                                assistant_content.append(content_block)
-                                # Pretty print tool call
-                                self.console.print(Panel(
-                                    f"Command: {content_block.input.get('command', '(no command)')}",
-                                    title=f"[tool]Using {content_block.name}[/tool]",
-                                    border_style="yellow",
-                                    box=box.ROUNDED
-                                ))
-                                
+                    for content_block in response.content:
+                        if content_block.type == "text":
+                            processed_text = self.process_custom_markdown(content_block.text)
+                            self.console.print(Panel(
+                                Markdown(processed_text),
+                                title="Claude",
+                                border_style="blue",
+                                box=box.ROUNDED
+                            ))
+                            assistant_content.append(content_block)
+                            
+                        elif content_block.type == "tool_use":
+                            has_tool_calls = True
+                            assistant_content.append(content_block)
+                            
+                            self.console.print(Panel(
+                                f"Command: {content_block.input.get('command', '(no command)')}",
+                                title=f"[tool]Using {content_block.name}[/tool]",
+                                border_style="yellow",
+                                box=box.ROUNDED
+                            ))
+                            
+                            try:
                                 result = await self.tool_collection.run(
                                     name=content_block.name,
                                     tool_input=content_block.input
                                 )
                                 
-                                if result.output:
+                                if hasattr(result, 'output'):
+                                    output = result.output
+                                    error = result.error if hasattr(result, 'error') else None
+                                else:
+                                    output = str(result)
+                                    error = None
+
+                                if output:
                                     self.console.print(Panel(
-                                        result.output,
+                                        output,
                                         title=f"[tool]{content_block.name} output[/tool]",
                                         border_style="yellow",
                                         box=box.ROUNDED
                                     ))
 
-                                if result.error:
+                                if error:
                                     self.console.print(Panel(
-                                        result.error,
+                                        error,
                                         title="[danger]Error[/danger]",
                                         border_style="red",
                                         box=box.ROUNDED
                                     ))
 
-                                # Format tool result for next message
                                 tool_result_content = [{
                                     "type": "tool_result",
                                     "tool_use_id": content_block.id,
-                                    "content": (result.output or "")  + (result.error or ""),
-                                    "is_error": bool(result.error)
+                                    "content": (output or "") + (error or ""),
+                                    "is_error": bool(error)
                                 }]
 
-                        # First add assistant's message with both text and tool_use blocks
+                            except Exception as tool_error:
+                                error_msg = str(tool_error)
+                                self.console.print(Panel(
+                                    error_msg,
+                                    title="[danger]Tool Error[/danger]",
+                                    border_style="red",
+                                    box=box.ROUNDED
+                                ))
+                                
+                                tool_result_content = [{
+                                    "type": "tool_result",
+                                    "tool_use_id": content_block.id,
+                                    "content": error_msg,
+                                    "is_error": True
+                                }]
+
+                    self.messages.append({
+                        "role": "assistant",
+                        "content": assistant_content
+                    })
+
+                    if has_tool_calls:
                         self.messages.append({
-                            "role": "assistant",
-                            "content": assistant_content
+                            "role": "user",
+                            "content": tool_result_content
                         })
+                        continue
+                    
+                    break
 
-                        # Then add tool results if there were tool calls
-                        if has_tool_calls:
-                            self.messages.append({
-                                "role": "user",
-                                "content": tool_result_content
-                            })
-                            continue  # Continue the loop for potential chained tool calls
-                        
-                        break  # No more tool calls, exit the loop
-
-            except Exception as e:
-                self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
-                self.console.print_exception()
+        except Exception as e:
+            self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
+            self.console.print_exception()
 
     def print_help(self):
         """Display help information"""
@@ -222,6 +250,12 @@ Always explain tool usage and outcomes to the user clearly."""
         ## Available Tools
         - bash: Execute shell commands
         - str_replace_editor: File editing capabilities
+          Commands:
+          - view: View file contents
+          - create: Create new file
+          - str_replace: Replace text in file
+          - insert: Insert text at line
+          - undo_edit: Undo last edit
 
         ## Current Model
         {}
@@ -238,7 +272,8 @@ Always explain tool usage and outcomes to the user clearly."""
     def clear_conversation(self):
         """Clear the current conversation"""
         self.messages = []
-        self.console.print("[bold green]Conversation cleared.[/bold green]")
+        self.open_files = {}  # Also clear any open files
+        self.console.print("[bold green]Conversation and file cache cleared.[/bold green]")
 
     def change_model(self):
         """Cycle through available models"""
@@ -249,8 +284,6 @@ Always explain tool usage and outcomes to the user clearly."""
 
     async def run(self):
         """Main CLI loop"""
-        #signal.signal(signal.SIGWINCH, self.update_dimensions)
-        
         # Show welcome screen
         self.console.print(self.create_welcome_screen())
         self.console.rule(style="dim")
