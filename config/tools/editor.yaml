@@ -1,0 +1,45 @@
+# config/tools/editor.yaml
+name: str_replace_editor
+description: |
+  Custom editing tool for viewing, creating and editing files
+
+  * State is persistent across command calls and discussions with the user
+  * If `path` is a file, `view` displays the result of applying `cat -n`
+  * If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep
+  * The `create` command cannot be used if the specified `path` already exists as a file
+  * If a `command` generates a long output, it will be truncated and marked with `<response clipped>`
+  * The `undo_edit` command will revert the last edit made to the file at `path`
+
+  Notes for using the `str_replace` command:
+  * The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file
+  * If the `old_str` parameter is not unique in the file, the replacement will not be performed
+  * Make sure to include enough context in `old_str` to make it unique
+
+input_schema:
+  type: object
+  properties:
+    command:
+      type: string
+      enum: [view, create, str_replace, insert, undo_edit]
+      description: The commands to run.
+    path:
+      type: string
+      description: Absolute path to file or directory
+    file_text:
+      type: string
+      description: Content for create command
+    old_str:
+      type: string
+      description: String to replace for str_replace command
+    new_str:
+      type: string
+      description: New string for str_replace/insert commands
+    insert_line:
+      type: integer
+      description: Line number for insert command
+    view_range:
+      type: array
+      items:
+        type: integer
+      description: Optional line range for view command
+  required: [command, path]
