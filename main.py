@@ -86,6 +86,8 @@ class ClaudeClient:
             tool_manager=self.tool_manager,
             cache_manager=self.cache_manager
         )
+        self.messages = []
+        self.system_prompt = self.config_manager.get_system_prompt()
         
         # Register tools
         self.setup_tools()
@@ -156,47 +158,78 @@ class ClaudeClient:
             
         return response
 
-    async def send_message(self, content: str) -> None:
-        """Send message to Claude and handle responses with tool calls."""
-        try:
-            # Prepare messages with cache control
-            messages = self.cache_manager.prepare_messages(content)
-            
-            while True:  # Support multiple rounds of tool use
-                with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
-                    response = await self._get_claude_response(messages)
-                    
-                    # Process the response
-                    result = await self.message_processor.process_response(response)
-                    
-                    # Update messages with tool results if any
-                    if result.has_tool_calls and result.tool_content:
-                        messages.append({
-                            "role": "user",
-                            "content": [{
-                                "type": "tool_result",
-                                "tool_use_id": result.tool_content[0]["id"],
-                                "content": result.tool_content
-                            }]
-                        })
+    async def send_message(self, content: str):
+                """Send message to Claude and handle responses with tool calls"""
+                self.messages.append({
+                    "role": "user", 
+                    "content": content
+                })
+                
+                try:
+                    while True:  # Support multiple rounds of tool use
+                        with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
+                            response = await self._get_claude_response(self.messages)
+                            assistant_content = []
+                            tool_results = []
+                            has_tool_calls = False
 
-                    # Update conversation state
-                    messages.append({
-                        "role": "assistant",
-                        "content": result.assistant_content
-                    })
-                    
-                    self.cache_manager.update_conversation_state(
-                        messages[-2] if result.has_tool_calls else messages[-1],
-                        result.assistant_content
-                    )
+                            # First process all content blocks and collect tool results
+                            for content_block in response.content:
+                                if content_block.type == "text":
+                                    processed_text = self.text_formatter.process_text(content_block.text)
+                                    self.console.print(Panel(
+                                        processed_text,
+                                        title="Claude",
+                                        border_style="blue",
+                                        box=box.ROUNDED
+                                    ))
+                                    assistant_content.append(content_block)
+                                    
+                                elif content_block.type == "tool_use":
+                                    has_tool_calls = True
+                                    assistant_content.append(content_block)
+                                    
+                                    # Handle the tool execution
+                                    await self.tool_manager.handle_tool(content_block)
+                                    
+                                    # Get result for this tool execution
+                                    result = self.tool_manager.get_tool_result(content_block.id)
+                                    
+                                    # Create tool result content
+                                    combined_content = ""
+                                    if result.output:
+                                        combined_content += result.output
+                                    if result.error:
+                                        combined_content += f"\nError: {result.error}" if combined_content else f"Error: {result.error}"
+                                    
+                                    tool_results.append({
+                                        "type": "tool_result",
+                                        "tool_use_id": content_block.id,
+                                        "content": combined_content,
+                                        "is_error": bool(result.error)
+                                    })
 
-                    if not result.has_tool_calls:
-                        break
+                            # Add assistant's message first
+                            self.messages.append({
+                                "role": "assistant",
+                                "content": assistant_content
+                            })
 
-        except Exception as e:
-            self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
-            self.console.print_exception()
+                            # Only if we had tool calls, add the tool results as a user message
+                            if has_tool_calls and tool_results:
+                                self.messages.append({
+                                    "role": "user",
+                                    "content": tool_results
+                                })
+                                continue  # Continue the conversation with tool results
+                            
+                            break  # No tool calls, end the conversation turn
+
+                except Exception as e:
+                    self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
+                    self.console.print_exception()
+
+
 
     def print_help(self) -> None:
         """Display help information."""
