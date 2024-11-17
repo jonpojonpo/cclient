@@ -33,10 +33,25 @@ class MessageProcessor:
                 assistant_content.append(processed_block)
             elif content_block.type == "tool_use":
                 has_tool_calls = True
-                tool_result = await self._handle_tool_block(content_block)
                 assistant_content.append(content_block)
-                if tool_result:
-                    tool_content.extend(tool_result)
+                # Process tool and get result
+                await self.tool_manager.handle_tool(content_block)
+                result = self.tool_manager.get_tool_result(content_block.id)
+                
+                # Format tool result for Claude API
+                if result:
+                    combined_content = ""
+                    if result.output:
+                        combined_content += result.output
+                    if result.error:
+                        combined_content += f"\nError: {result.error}" if combined_content else f"Error: {result.error}"
+                    
+                    tool_content.append({
+                        "type": "tool_result",
+                        "tool_use_id": content_block.id,
+                        "content": combined_content,
+                        "is_error": bool(result.error)
+                    })
 
         return MessageResult(
             assistant_content=assistant_content,

@@ -159,75 +159,53 @@ class ClaudeClient:
         return response
 
     async def send_message(self, content: str):
-                """Send message to Claude and handle responses with tool calls"""
-                self.messages.append({
-                    "role": "user", 
-                    "content": content
-                })
-                
-                try:
-                    while True:  # Support multiple rounds of tool use
-                        with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
-                            response = await self._get_claude_response(self.messages)
-                            assistant_content = []
-                            tool_results = []
-                            has_tool_calls = False
+            """Send message to Claude and handle responses with tool calls"""
+            self.messages.append({
+                "role": "user", 
+                "content": content
+            })
+            
+            try:
+                while True:  # Support multiple rounds of tool use
+                    with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
+                        # Get Claude's response
+                        response = await self._get_claude_response(self.messages)
+                        
+                        # Process the response using MessageProcessor
+                        result = await self.message_processor.process_response(response)
+                        
+                        # Add assistant's message
+                        self.messages.append({
+                            "role": "assistant",
+                            "content": result.assistant_content
+                        })
 
-                            # First process all content blocks and collect tool results
-                            for content_block in response.content:
-                                if content_block.type == "text":
-                                    processed_text = self.text_formatter.process_text(content_block.text)
-                                    self.console.print(Panel(
-                                        processed_text,
-                                        title="Claude",
-                                        border_style="blue",
-                                        box=box.ROUNDED
-                                    ))
-                                    assistant_content.append(content_block)
-                                    
-                                elif content_block.type == "tool_use":
-                                    has_tool_calls = True
-                                    assistant_content.append(content_block)
-                                    
-                                    # Handle the tool execution
-                                    await self.tool_manager.handle_tool(content_block)
-                                    
-                                    # Get result for this tool execution
-                                    result = self.tool_manager.get_tool_result(content_block.id)
-                                    
-                                    # Create tool result content
-                                    combined_content = ""
-                                    if result.output:
-                                        combined_content += result.output
-                                    if result.error:
-                                        combined_content += f"\nError: {result.error}" if combined_content else f"Error: {result.error}"
-                                    
-                                    tool_results.append({
-                                        "type": "tool_result",
-                                        "tool_use_id": content_block.id,
-                                        "content": combined_content,
-                                        "is_error": bool(result.error)
-                                    })
-
-                            # Add assistant's message first
-                            self.messages.append({
-                                "role": "assistant",
-                                "content": assistant_content
-                            })
-
-                            # Only if we had tool calls, add the tool results as a user message
-                            if has_tool_calls and tool_results:
+                        # If there were tool calls, add results and continue
+                        if result.has_tool_calls:
+                            if result.tool_content:
+                                # Add tool results as a user message
                                 self.messages.append({
                                     "role": "user",
-                                    "content": tool_results
+                                    "content": result.tool_content  # This is already in the correct format
                                 })
-                                continue  # Continue the conversation with tool results
-                            
-                            break  # No tool calls, end the conversation turn
+                            else:
+                                # If no tool results, still need to send empty result
+                                self.messages.append({
+                                    "role": "user",
+                                    "content": [{
+                                        "type": "tool_result",
+                                        "tool_use_id": block.id,
+                                        "content": "",
+                                        "is_error": True
+                                    } for block in result.assistant_content if block.type == "tool_use"]
+                                })
+                            continue
+                        
+                        break  # No tool calls, end the conversation turn
 
-                except Exception as e:
-                    self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
-                    self.console.print_exception()
+            except Exception as e:
+                self.console.print(f"[bold red]Error:[/bold red] {str(e)}")
+                self.console.print_exception()
 
 
 
