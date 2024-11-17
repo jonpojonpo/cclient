@@ -40,17 +40,28 @@ class MessageProcessor:
                 
                 # Format tool result for Claude API
                 if result:
-                    combined_content = ""
-                    if result.output:
-                        combined_content += result.output
-                    if result.error:
-                        combined_content += f"\nError: {result.error}" if combined_content else f"Error: {result.error}"
+                    is_error = bool(result.error)
+                    content = ""
+                    
+                    # Handle content based on whether it's an error or success
+                    if is_error:
+                        content = f"Error: {result.error}" if result.error else "Unknown error occurred"
+                    else:
+                        content = result.output if result.output else "Success but no output"
                     
                     tool_content.append({
                         "type": "tool_result",
                         "tool_use_id": content_block.id,
-                        "content": combined_content,
-                        "is_error": bool(result.error)
+                        "content": content,  # Never empty content
+                        "is_error": is_error
+                    })
+                else:
+                    # Handle case where no result was returned
+                    tool_content.append({
+                        "type": "tool_result",
+                        "tool_use_id": content_block.id,
+                        "content": "Tool execution failed to produce a result",
+                        "is_error": True
                     })
 
         return MessageResult(
