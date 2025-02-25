@@ -94,7 +94,7 @@ class ClaudeClient:
 
     def setup_tools(self):
         """Register available tools."""
-        for tool in [BashTool(), EditTool()]:
+        for tool in [BashTool20250124(), EditTool20250124()]:
             self.tool_manager.register_tool(tool.name, tool)
             self.console.print(f"[system]Registered tool:[/system] [tool]{tool.name}[/tool]")
 
