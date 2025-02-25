@@ -32,7 +32,7 @@ from message_processor import MessageProcessor
 class ClaudeClient:
     def __init__(self):
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        self.model = "claude-3-5-sonnet-20241022"
+        self.model = "claude-3-7-sonnet-latest"
         
         # Setup theming
         custom_theme = Theme({
