@@ -21,8 +21,8 @@ import pyfiglet
 
 from tools.base import BaseAnthropicTool, ToolResult
 from tools.tool_manager import ToolManager
-from tools.bash import BashTool
-from tools.edit import EditTool
+from tools.bash import BashTool20250124
+from tools.edit import EditTool20250124
 from formatters.art_manager import ArtManager
 from formatters.text_formatter import TextFormatter
 from core.cache import CacheManager
