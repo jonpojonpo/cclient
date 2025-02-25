@@ -8,7 +8,7 @@ from rich.panel import Panel
 from anthropic.types.beta import BetaToolUseBlock
 
 from .base import BaseAnthropicTool, ToolResult, ToolError, CLIResult
-from .bash import BashTool  # Using Anthropic's BashTool
+#from .bash import BashTool20250124  # Using Anthropic's BashTool
 
 class ToolManager:
     """Manages tool registration, execution, and output handling."""
