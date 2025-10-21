@@ -61,6 +61,7 @@ Last updated: 2024-10-26 11:04
 
 4. **Multiple Model Support**
    - claude-sonnet-4-5-20250929 (Sonnet 4.5 - latest)
+   - claude-haiku-4-5-20250929 (Haiku 4.5 - fast, new)
    - claude-3-7-sonnet-latest (Claude 3.7 Sonnet - rolling)
    - claude-3-7-sonnet-20250219 (Claude 3.7 Sonnet - dated)
    - claude-3-5-sonnet-20241022 (Claude 3.5 Sonnet)
