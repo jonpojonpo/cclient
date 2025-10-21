@@ -32,12 +32,16 @@ class ClaudeClient:
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         self.messages: List[Dict[str, Any]] = []
         self.models = [
-            "claude-3-5-sonnet-20241022",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307"
+            "claude-sonnet-4-5-20250929",  # Sonnet 4.5 (latest)
+            "claude-haiku-4-5-20250929",   # Haiku 4.5 (fast, new)
+            "claude-3-7-sonnet-latest",    # Claude 3.7 Sonnet (rolling)
+            "claude-3-7-sonnet-20250219",  # Claude 3.7 Sonnet (dated)
+            "claude-3-5-sonnet-20241022",  # Claude 3.5 Sonnet
+            "claude-3-opus-20240229",      # Claude 3 Opus
+            "claude-3-sonnet-20240229",    # Claude 3 Sonnet
+            "claude-3-haiku-20240307"      # Claude 3 Haiku
         ]
-        self.current_model = "claude-3-5-sonnet-20241022"
+        self.current_model = "claude-sonnet-4-5-20250929"
         
         # Initialize tools using Anthropic's implementations
         self.tool_collection = ToolCollection(
