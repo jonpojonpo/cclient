@@ -60,10 +60,13 @@ Last updated: 2024-10-26 11:04
    - Edit files interactively
 
 4. **Multiple Model Support**
-   - claude-3-5-sonnet-20241022
-   - claude-3-opus-20240229
-   - claude-3-sonnet-20240229
-   - claude-3-haiku-20240307
+   - claude-sonnet-4-5-20250929 (Sonnet 4.5 - latest)
+   - claude-3-7-sonnet-latest (Claude 3.7 Sonnet - rolling)
+   - claude-3-7-sonnet-20250219 (Claude 3.7 Sonnet - dated)
+   - claude-3-5-sonnet-20241022 (Claude 3.5 Sonnet)
+   - claude-3-opus-20240229 (Claude 3 Opus)
+   - claude-3-sonnet-20240229 (Claude 3 Sonnet)
+   - claude-3-haiku-20240307 (Claude 3 Haiku)
 
 ## Contributing
 Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
