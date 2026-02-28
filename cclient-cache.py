@@ -2,6 +2,7 @@ import os
 import signal
 import sys
 import asyncio
+import readline
 from pathlib import Path
 from typing import List, Dict, Any, Union
 from datetime import datetime
@@ -32,16 +33,16 @@ class ClaudeClient:
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         self.messages: List[Dict[str, Any]] = []
         self.models = [
-            "claude-sonnet-4-5-20250929",  # Sonnet 4.5 (latest)
-            "claude-haiku-4-5-20250929",   # Haiku 4.5 (fast, new)
-            "claude-3-7-sonnet-latest",    # Claude 3.7 Sonnet (rolling)
-            "claude-3-7-sonnet-20250219",  # Claude 3.7 Sonnet (dated)
+            "claude-opus-4-6",             # Opus 4.6 (most capable)
+            "claude-sonnet-4-6",           # Sonnet 4.6 (latest, default)
+            "claude-haiku-4-5-20251001",   # Haiku 4.5 (fast)
+            "claude-sonnet-4-5-20250929",  # Sonnet 4.5
+            "claude-3-7-sonnet-20250219",  # Claude 3.7 Sonnet
             "claude-3-5-sonnet-20241022",  # Claude 3.5 Sonnet
             "claude-3-opus-20240229",      # Claude 3 Opus
-            "claude-3-sonnet-20240229",    # Claude 3 Sonnet
             "claude-3-haiku-20240307"      # Claude 3 Haiku
         ]
-        self.current_model = "claude-sonnet-4-5-20250929"
+        self.current_model = "claude-opus-4-6"
         
         # Initialize tools using Anthropic's implementations
         self.tool_collection = ToolCollection(

@@ -2,6 +2,7 @@ import os
 import signal
 import sys
 import asyncio
+import readline
 from pathlib import Path
 from typing import List, Dict, Any, Union
 from datetime import datetime
@@ -32,16 +33,16 @@ class ClaudeClient:
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         self.messages: List[Dict[str, Any]] = []
         self.models = [
-            "claude-sonnet-4-5-20250929",  # Sonnet 4.5 (latest)
-            "claude-haiku-4-5-20250929",   # Haiku 4.5 (fast, new)
-            "claude-3-7-sonnet-latest",    # Claude 3.7 Sonnet (rolling)
-            "claude-3-7-sonnet-20250219",  # Claude 3.7 Sonnet (dated)
+            "claude-opus-4-6",             # Opus 4.6 (most capable)
+            "claude-sonnet-4-6",           # Sonnet 4.6 (latest, default)
+            "claude-haiku-4-5-20251001",   # Haiku 4.5 (fast)
+            "claude-sonnet-4-5-20250929",  # Sonnet 4.5
+            "claude-3-7-sonnet-20250219",  # Claude 3.7 Sonnet
             "claude-3-5-sonnet-20241022",  # Claude 3.5 Sonnet
             "claude-3-opus-20240229",      # Claude 3 Opus
-            "claude-3-sonnet-20240229",    # Claude 3 Sonnet
             "claude-3-haiku-20240307"      # Claude 3 Haiku
         ]
-        self.current_model = "claude-sonnet-4-5-20250929"
+        self.current_model = "claude-opus-4-6"
         
         # Initialize tools using Anthropic's implementations
         self.tool_collection = ToolCollection(
@@ -142,6 +143,7 @@ Always explain tool usage and outcomes to the user clearly."""
                     )
 
                     assistant_content = []
+                    tool_result_content = []
                     has_tool_calls = False
 
                     for content_block in response.content:
@@ -154,24 +156,24 @@ Always explain tool usage and outcomes to the user clearly."""
                                 box=box.ROUNDED
                             ))
                             assistant_content.append(content_block)
-                            
+
                         elif content_block.type == "tool_use":
                             has_tool_calls = True
                             assistant_content.append(content_block)
-                            
+
                             self.console.print(Panel(
                                 f"Command: {content_block.input.get('command', '(no command)')}",
                                 title=f"[tool]Using {content_block.name}[/tool]",
                                 border_style="yellow",
                                 box=box.ROUNDED
                             ))
-                            
+
                             try:
                                 result = await self.tool_collection.run(
                                     name=content_block.name,
                                     tool_input=content_block.input
                                 )
-                                
+
                                 if hasattr(result, 'output'):
                                     output = result.output
                                     error = result.error if hasattr(result, 'error') else None
@@ -195,12 +197,12 @@ Always explain tool usage and outcomes to the user clearly."""
                                         box=box.ROUNDED
                                     ))
 
-                                tool_result_content = [{
+                                tool_result_content.append({
                                     "type": "tool_result",
                                     "tool_use_id": content_block.id,
                                     "content": (output or "") + (error or ""),
                                     "is_error": bool(error)
-                                }]
+                                })
 
                             except Exception as tool_error:
                                 error_msg = str(tool_error)
@@ -210,13 +212,13 @@ Always explain tool usage and outcomes to the user clearly."""
                                     border_style="red",
                                     box=box.ROUNDED
                                 ))
-                                
-                                tool_result_content = [{
+
+                                tool_result_content.append({
                                     "type": "tool_result",
                                     "tool_use_id": content_block.id,
                                     "content": error_msg,
                                     "is_error": True
-                                }]
+                                })
 
                     self.messages.append({
                         "role": "assistant",

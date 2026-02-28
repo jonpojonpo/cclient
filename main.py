@@ -22,7 +22,7 @@ import pyfiglet
 from tools.base import BaseAnthropicTool, ToolResult
 from tools.tool_manager import ToolManager
 from tools.bash import BashTool20250124
-from tools.edit import EditTool20250124
+from tools.edit import EditTool20250728
 from formatters.art_manager import ArtManager
 from formatters.text_formatter import TextFormatter
 from core.cache import CacheManager
@@ -32,7 +32,7 @@ from message_processor import MessageProcessor
 class ClaudeClient:
     def __init__(self):
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        self.model = "claude-sonnet-4-5-20250929"  # Latest Sonnet 4.5 model
+        self.model = "claude-opus-4-6"  # Opus 4.6 (default)
         
         # Setup theming
         custom_theme = Theme({
@@ -94,7 +94,7 @@ class ClaudeClient:
 
     def setup_tools(self):
         """Register available tools."""
-        for tool in [BashTool20250124(), EditTool20250124()]:
+        for tool in [BashTool20250124(), EditTool20250728()]:
             self.tool_manager.register_tool(tool.name, tool)
             self.console.print(f"[system]Registered tool:[/system] [tool]{tool.name}[/tool]")
 
