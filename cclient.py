@@ -77,10 +77,10 @@ Special formatting:
 
 Available tools:
 - bash: Execute shell commands
-- str_replace_editor: Edit files with advanced capabilities
+- str_replace_based_edit_tool: Edit files with advanced capabilities
   Commands available:
   - view: View file contents (params: path, view_range[optional])
-  - create: Create new file (params: path, file_text)
+  - create: Create new file (params: path, file_text) — file_text is REQUIRED
   - str_replace: Replace text in file (params: path, old_str, new_str)
   - insert: Insert text at line (params: path, insert_line, new_str)
   - undo_edit: Undo last edit (params: path)
@@ -134,7 +134,7 @@ Always explain tool usage and outcomes to the user clearly."""
             while True:  # Support multiple rounds of tool use
                 with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
                     response = self.client.messages.create(
-                        max_tokens=1024,
+                        max_tokens=8096,
                         messages=self.messages,
                         model=self.current_model,
                         system=self.system_prompt,
@@ -254,7 +254,7 @@ Always explain tool usage and outcomes to the user clearly."""
 
         ## Available Tools
         - bash: Execute shell commands
-        - str_replace_editor: File editing capabilities
+        - str_replace_based_edit_tool: File editing capabilities
           Commands:
           - view: View file contents
           - create: Create new file
