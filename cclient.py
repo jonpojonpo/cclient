@@ -133,13 +133,12 @@ Always explain tool usage and outcomes to the user clearly."""
         try:
             while True:  # Support multiple rounds of tool use
                 with self.console.status("[bold green]Claude is thinking...", spinner="dots"):
-                    response = self.client.beta.messages.create(
+                    response = self.client.messages.create(
                         max_tokens=1024,
                         messages=self.messages,
                         model=self.current_model,
                         system=self.system_prompt,
                         tools=self.tool_collection.to_params(),
-                        betas=["computer-use-2024-10-22"]
                     )
 
                     assistant_content = []

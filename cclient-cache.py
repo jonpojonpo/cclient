@@ -175,7 +175,6 @@ Always explain tool usage and outcomes to the user clearly.""",
                         model=self.current_model,
                         system=self.system_prompt,
                         tools=self.prepare_tools(),
-                        betas=["computer-use-2024-10-22"]
                     )
 
                     if hasattr(response, 'usage'):
